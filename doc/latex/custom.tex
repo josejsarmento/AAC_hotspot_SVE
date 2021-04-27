@@ -1,0 +1,23 @@
+\usepackage{listings}
+\renewcommand{\lstlistingname}{Code}
+\usepackage{collcell,booktabs,siunitx}
+\usepackage{xparse}
+
+\newcolumntype{A}{>{\collectcell\rememberA}r<{\endcollectcell}}
+\newcolumntype{B}{>{\collectcell\rememberB}r<{\endcollectcell}}
+\newcolumntype{C}{>{\collectcell\computeC}r<{\endcollectcell}}
+
+\newcommand{\rememberA}[1]{%
+  \gdef\DIVIDEND{#1}#1%
+}
+\newcommand{\rememberB}[1]{%
+  \gdef\DIVISOR{#1}#1%
+}
+
+\ExplSyntaxOn
+\NewDocumentCommand{\computeC}{}
+ {
+  \bfseries\fp_eval:n { round ( \DIVIDEND/\DIVISOR , 2 ) }
+ }
+\ExplSyntaxOff
+

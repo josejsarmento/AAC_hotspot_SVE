@@ -1,0 +1,305 @@
+\documentclass[conference]{IEEEtran}
+%\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,   
+    citecolor=black,
+    urlcolor=blue,
+}
+
+\include{custom}
+
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Application acceleration with SIMD Extensions: ``Hotspot'' analysis\\
+%{\footnotesize \textsuperscript{*}Note: Sub-titles are not captured in Xplore and
+%should not be used}
+%\thanks{Identify applicable funding agency here. If none, delete this.}
+}
+
+\author{
+    \IEEEauthorblockN{José Sarmento}
+    \IEEEauthorblockA{\textit{MEEC} \\
+    \textit{Instituto Superior Técnico}\\
+    Lisbon, Portugal \\
+    jose.sarmento@tecnico.ulisboa.pt}
+    \and
+    \IEEEauthorblockN{José Serafim}
+    \IEEEauthorblockA{\textit{MEEC} \\
+    \textit{Instituto Superior Técnico}\\
+    Lisbon, Portugal \\
+    jose.serafim@tecnico.ulisboa.pt}
+    \and
+    \IEEEauthorblockN{Pedro Lopes}
+    \IEEEauthorblockA{\textit{MEEC} \\
+    \textit{Instituto Superior Técnico}\\
+    Lisbon, Portugal  \\
+    pedrolopes1998@tecnico.ulisboa.pt}
+}
+
+\maketitle
+
+\begin{abstract}
+% 100-150 words summarizing the problem, solution and results.
+The focal point of this project is the demonstration of improvement of a processor's performance using SIMD extensions so that we can accelerate kernels from a benchmark called \textit{Hotspot}. The assignment was accomplished using the \textit{gem5} simulator, a modular platform for computer-system architecture research that encompasses system-level architecture as well as processor microarchitecture. Initially, the original app's performance was studied and profiled. To accelerate this benchmark, \textit{Arm SVE (Scalable Vector Extension)} was used. A comparison was established between the original benchmark and the developed solution, showing a considerable improvement in the processor's performance while assuring the expected output.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Hotspot, processor, optimization, SVE, vectorization
+\end{IEEEkeywords}
+
+
+% % % % %   1 - INTRO    % % % % %
+\section{Introduction}
+    %Briefly describe the target application and summarize the problems faced to accelerate it.
+    %Highlight (e.g., through bullet points) the main strategies employed to accelerate the %application.
+    This assignment targets the \textit{Hotspot} benchmark which can be labeled as a transient temperature computing application. 
+    \textit{Hotspot} is used to estimate processor temperature based on an architectural floorplan and simulated power measurements. The app solves differential equations iteratively for each block. Each output element represents the average temperature of the corresponding area of the chip. 
+    The benchmark converts the heat transfer differential equations to difference equations and solves the difference equations by iterating. 
+    
+    In terms of optimization/acceleration strategies, some aspects are identified as main time dispensing factors such as the high number of \text\it{for} loops iterations and their size. Alternatively, the fact that \textit{for} loops are developed to execute first through rows is important and preserved because of the contiguous memory address space.
+    
+    Taking this into account, the following optimization strategy was developed:
+    \begin{itemize}
+        \item \underline{\textit{Profiling:}} Study and analysis of the benchmark and its functions. Time measurement of functions and segments of code in order to identify which loops take more time to execute and that are worthy of an acceleration process.
+        
+        \item \underline{\textit{Vectorization:}} performing the vectorization method taught in the Advanced Computer Architectures class\cite{b1}\cite{b2}.
+        
+        \item \underline{\textit{Loop Unrolling:}} performing the loop unrolling procedure taught in class\cite{b2}. 
+    \end{itemize}
+    
+    The designed accelerated benchmark's code is located in the Cuda2 machine, group07/Hotspot/source folder.
+    
+    
+% % % % %   2 - TARGET APPLICATION    % % % % %
+
+\section{Target application}
+%Describe the target application: main kernels/functions (including the percentage of time
+%spent in such kernel/function vs the total execution time) and data structures.
+The benchmark starts by allocating necessary space for the temperature and power arrays leading to the input of grid data from the respective data files (function \textit{read\_input}). This grid data is represented by a grid model where the matrix is divided in chunks of size $16\times16$. This app involves two major functions (where one of them calls the other):
+\begin{itemize}
+    \item \textit{compute\_tran\_temp()} - consists in a transient solver driver routine. Simply converts the heat transfer differential equations to difference equations and solves these by iterating.
+    
+    \item \textit{single\_iteration()} - consists in a single iteration of the transient solver in the grid model. Therefore, it advances a solution for the discretized difference equations by one time step.
+\end{itemize}
+
+The function \textit{single\_iteration()} is expressed in two big \textit{for} loops. However, depending on the current 'position' in the matrix, only one loop will be executed since one of them focuses on outer chunks and the other one on internal chunks. Targeting an optimization of the application, a \textit{profiling} was elaborated and the time spent in each function fraction and loops is represented in the table \ref{tab:profiling}. The program was executed with the Arm A7 CPU model and an input data size of 128, simulated under \textit{gem5.opt}.
+
+
+\begin{table}[htbp]
+    \caption{Benchmark's processing time before optimization}
+    \begin{center}
+    \begin{tabular}{l r r}
+    
+    %\cline{2-3}
+    \multicolumn{1}{l}{} &
+    \textbf{w/o SVE} &
+    \multicolumn{1}{l}{\textbf{\% of function}}\\
+    
+    \multicolumn{1}{l}{} &
+    \multicolumn{1}{c}{[\(\mu\)s]} &
+    \multicolumn{1}{l}{\textbf{total time}}\\
+    
+    \hline
+    Transient temperature computing & 788 & 100\\
+    \hline
+    All edge/corner chunks & 175 & 22.21\\
+    \hline
+    All inner chunks & 609 & 77.28\\
+    \hline
+    Average edge/corner chunks & 6.25 & 0.79\\
+    \hline
+    Average inner chunks & 16.92 & 2.15\\
+    
+    \hline 
+    
+    \end{tabular}
+    \label{tab:profiling}
+    \end{center}
+\end{table}
+
+Evaluating these loops, we can conclude that the \textit{for} loop responsible for the inner chunks takes most of the time ($\approx 77.28\%$ of total time).
+
+Taking all this into account, the \textit{for} loop that processes internal chunks (Code \ref{code:innerchunk}.) is to be accelerated.
+
+\lstinputlisting[
+    caption=Inner chunk code.,
+    float,
+    basicstyle=\scriptsize,
+    showstringspaces=false,
+    frame=single,
+    language=C,
+    label=code:innerchunk]
+{vectorizable_loop.c}
+
+
+Through Amdhal's Law (eq. \ref{eq:amdhal}), we can obtain a "ceiling" for the function speedup,
+
+\begin{equation}\label{eq:amdhal}
+    S = \frac{1}{1 - f + \frac{f}{s}}
+\end{equation}
+
+where \textit{f} is the fraction of the system we want to optimize (\(f\approx0.77\)), and \textit{s} the fraction speedup. To obtain the theoretical maximum function speedup \textit{S}, we simply need to imply a maximum fraction speedup (i.e., \(s\rightarrow\infty\)), which results into \(S\approx4.40\). This is the result that this work will strive for this input size.
+
+% % % % %   3 - PARALLELIZATION APPROACH    % % % % %
+\section{Parallelization approach}
+
+%Describe the approach (or approaches) used to accelerate the application.
+
+After choosing the function to parallelize, we started parallelizing it by using Arm SVE. The function we choose works with a matrix, and has two 'for' loops, one for the rows and one for the columns. We decided to parallelize the loop of the columns, because it was the loop with the most instructions, and it will also accelerate the rows loop.\par
+
+We set our unrolling factor to 4, which means for each iteration of a row loop, we will compute 4 rows in parallel.
+
+When using the SVE extension, we parallelized it with a vector length of eight, by loading 32 elements per register. The matrix was divided in chunks of 16x16 elements each; in our optimized loop we needed to process every chunk except the ones on the borders of the matrix. By loading 32 consecutive elements on a register, we were loading the first row of two chunks (16 elements per chunk). We kept processing 32 elements at a time from the same line, until we reached the before last chunk (the last chunk is a border chunk, which is processed in a different part of the code), and with that we could optimize the memory access, because all the elements in a line were stored in consecutive memory positions. It was possible to do this because for every possible size of matrix, the number of chunks we needed to process per row was divisible by two. After processing the first complete row (except the border chunks), we continue to the second row, and so on until we've processed all the non-border chunks.
+
+The code can be observed in \href{https://github.com/josejsarmento/AAC_hotspot_SVE}{the linked repository}.
+
+%\lstinputlisting[
+%    caption=Inner chunk vectorized.,
+%    basicstyle=\scriptsize,
+%    showstringspaces=false,
+%    frame=single,
+%    language=C,
+%    label=code:innerchunkvect]
+%{vectorized_loop.c}
+
+
+
+% % % % %   4 - RESULTS    % % % % %
+\section{Results}
+
+%Describe the input data set, the simulation environment and the obtained results. The results should
+%consider the attained performance improvement (speed-up) of applying SVE regarding the standard implementation (GCC flag -O2). The discussion of the attained results can also be complemented by correlating the attained speed-ups with the performance event results outputted by Gem5.
+
+The simulations were ran under \textit{gem5}; all runs were executed with with the same number of iterations (1) and SVE vector length (1024-bit), and with two different CPU models and various input matrices sizes. 
+The program was first compiled with the original C code only, then with the optimized fraction in SVE; everything was compiled with the \verb|O2| optimization flag.
+
+A slight variation was noticed in different runs with the exact same parameters; to mitigate this variance, a script was developed so that, for each set of parameters, it would run the program 100 times and output the median (except for sizes 512 and 1024, which 100 iterations would take too long; for comparison, one run under \textit{gem5.opt} and input size 64 takes 44 seconds; an input size of 512 takes 33 minutes; 1024 takes 133 minutes).
+
+The speedup for each component is obtained by calculating the division of the original over the optimized time.
+
+The results can be seen on tables (\ref{tab:fraction_results}) and (\ref{tab:function_results}).
+
+
+\begin{table}[htbp]
+    \caption{Vectorizable fraction time results}
+    \begin{center}
+    \begin{tabular}{ c r A B C}
+    
+    \multicolumn{2}{c}{\textbf{Execution}} & \multicolumn{2}{c}{\textbf{Fraction}}\\
+    \multicolumn{2}{c}{\textbf{specifications}} & \multicolumn{2}{c}{\textbf{time}}\\
+    
+    \hline
+    
+    \textit{CPU} & \textit{Input} & \multicolumn{1}{c}{\textit{w/o SVE}} & \multicolumn{1}{c}{\textit{w/ SVE}} & \multicolumn{1}{c}{\textbf{Fraction}}\\
+    
+    \textit{model} & \textit{size} & \multicolumn{1}{c}{[\(\mu\)s]} & \multicolumn{1}{c}{[\(\mu\)s]} & \multicolumn{1}{c}{\textbf{Speedup}}\\
+    
+    \hline
+    
+    &  64  & 21 & 3 & \\
+    & 128  & 610 & 90 & \\
+Arm A7  & 256  & 1872 & 401 & \\
+    & 512  & 10234 & 1792 & \\
+    & 1024  & 44261 & 7678 & \\
+    \hline
+    
+    &  64  & 9 & 2 & \\
+    &  128  & 172 & 31 & \\
+Arm A15  &  256  & 919 & 218 & \\
+    & 512  & 4921 & 1030 & \\
+    &  1024  & 23018 & 4931 & \\
+      
+    \hline 
+    
+    \end{tabular}
+    \label{tab:fraction_results}
+    \end{center}
+\end{table}
+
+\begin{table}[htbp]
+    \caption{Function time results}
+    \begin{center}
+    \begin{tabular}{c r A B C r}
+    
+    \multicolumn{2}{c}{\textbf{Execution}} & \multicolumn{2}{c}{\textbf{Function}}\\
+    
+    \multicolumn{2}{c}{\textbf{specifications}} & \multicolumn{2}{c}{\textbf{time}}\\
+    
+    \hline
+
+    \textit{CPU} & \textit{Input} & \multicolumn{1}{c}{\textit{w/o SVE}} & \multicolumn{1}{c}{\textit{w/ SVE}} & \multicolumn{1}{c}{\textbf{Function}} & \multicolumn{1}{c}{\% of}\\
+    
+    \textit{model} & \textit{size} & \multicolumn{1}{c}{[\(\mu\)s]} & \multicolumn{1}{c}{[\(\mu\)s]} & \multicolumn{1}{c}{\textbf{Speedup}} &
+    \multicolumn{1}{c}{\(S_{max}\)}\\
+    
+    \hline
+    
+    &  64   & 68 & 46 & & 32.99\\
+    &  128  & 785 & 266 & & 65.76\\
+Arm A7 &  256 & 2239 & 743 & & 49.34\\
+    & 512  & 11078 & 2570 & & 70.65\\
+    & 1024  & 46228 & 9471 & & 79.99\\
+    
+    \hline
+    
+    &  64 & 41 & 32 & & 20.98\\
+    &  128 & 275 & 133 & & 33.93\\
+Arm A15 &  256 & 1124 & 417 & & 44.26\\
+    & 512  & 5399 & 1468 & & 60.32\\
+    & 1024  & 24229 & 5924 & & 67.04\\
+    
+    \hline 
+    \end{tabular}
+    \label{tab:function_results}
+    \end{center}
+\end{table}
+
+
+From the results, we can see from the get-go a significant time improvement with the optimized code. 
+
+The function speedup is higher with an increasing input size, as the number of inner chunks grows relative to the outer chunks. For input size 64, the ratio inner/outer chunks is 1:3; for 1024, it's approximately 48:3. 
+As our function speedup increases, so does the theoretical maximum for each input size; 
+
+
+
+We can see that of the two CPU models, the Arm A15 is the fastest: this is because it is an out-of-order processor, which means that it will run instructions depending on the availability of input data and execution units, instead of the original code order. This is also why we see smaller speedups with this CPU, as it is the CPU itself that controls instructions flow and optimization. 
+
+
+
+% % % % %   5 - CONCLUSION    % % % % %
+\section{Conclusion}
+%Summarize the paper, including approach and results
+
+The SVE has revolutionized the ARM architecture, by allowing us to have a more effective way to accelerate applications that were not available with NEON.\par
+
+By completing this assignment we realized that we're able to obtain a full function speedup of 4.3 by parallelizing the code with the Arm SVE extension. That speedup allowed us to realize how the vectorization and loop unrolling can be very important at a larger scale, to accelerate machines, programs or processors.\par
+
+It would be possible to adapt our program to use a bigger vector length, and by that, processing a higher number of elements at a time, what possibly would increase our speedup even more.
+
+Further optimization could be established by integrating software prefetching in the Assembly code. Another possible route would be to increase the SVE vector length to 2048-bits and in the same loop process 4 chunk rows in a first part then 2 chunk rows in the other.
+
+
+
+
+
+
+\begin{thebibliography}{00}
+\bibitem{b1} F. Petrogalli, ``A sneak peek into SVE and VLA programming''
+\bibitem{b2} J. Domingos and P. Tomás, ``SIMD processing with Arm NEON/SVE''
+
+\end{thebibliography}
+
+\end{document}
