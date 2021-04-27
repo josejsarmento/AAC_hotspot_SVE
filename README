@@ -16,7 +16,7 @@ To compile for SVE, add `SVE=1`
 To time all functions in the benchmark, compile with `TIME=1`
 
 ## Makefile variables
-S: matrix size (size x size)
+S: input matrix size (size x size)
 I: number of iterations
 CPU: choose between A7/A15 CPU models
 
