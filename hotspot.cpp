@@ -254,14 +254,14 @@ void single_iteration(FLOAT *result, FLOAT *temp, FLOAT *power, int row, int col
                 "mov x6, %[col2]                                    \n\t"   // iterator + col * 2
                 "mov x7, %[col3]                                    \n\t"   // iterator + col * 3
 
-		        "whilelt p0.s, x4, %[words_reg]                         \n\t"   // limit for words processing
+		"whilelt p0.s, x4, %[words_reg]                     \n\t"   // limit for words processing
                 "ld1rw z0.s, p0/z, %[Rx_1]                          \n\t"
                 "ld1rw z1.s, p0/z, %[Ry_1]                          \n\t"
                 "ld1rw z2.s, p0/z, %[Rz_1]                          \n\t"
                 "ld1rw z3.s, p0/z, %[amb_temp]                      \n\t"
                 "ld1rw z4.s, p0/z, %[cap_1]                         \n\t"
 
-		        "whilelt p1.s, x4, %[size]                              \n\t"
+		"whilelt p1.s, x4, %[size]                          \n\t"
                 ".loop_column:                                      \n\t"
                     "ld1w z5.s,  p0/z, [%[temp], x4, lsl #2]        \n\t"   // temp[r*col+c] or temp
                     "ld1w z10.s,  p0/z, [%[temp], x5, lsl #2]       \n\t"
