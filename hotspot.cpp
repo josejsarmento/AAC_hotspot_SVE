@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <sys/time.h>
-// avoid using sys/time.h in new code...
-#include <time.h>
 
 // Returns the current system time in microseconds 
 long long get_time()
