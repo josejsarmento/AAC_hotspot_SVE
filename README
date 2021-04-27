@@ -1,0 +1,38 @@
+# Hotspot Benchmark
+
+## Make options
+
+compile_host - compiles to run locally
+compile_gem5 - compiles to run in gem5
+
+run_host - runs locally
+run_gem5 - runs in gem5
+
+
+## Specific make/compiler flags
+
+To compile for SVE, add `SVE=1`
+
+To time all functions in the benchmark, compile with `TIME=1`
+
+## Makefile variables
+S: matrix size (size x size)
+I: number of iterations
+CPU: choose between A7/A15 CPU models
+
+
+## Executable usage
+
+Usage: ./hotspot <grid_rows> <grid_cols> <sim_time> <no. of threads> <temp_file> <power_file>
+        <grid_rows>  		- number of rows in the grid (positive integer)
+        <grid_cols>  		- number of columns in the grid (positive integer)
+        <sim_time>   		- number of iterations
+        <no. of threads>        - number of threads
+        <temp_file>  		- name of the file containing the initial temperature values of each cell
+        <power_file> 		- name of the file containing the dissipated power values of each cell
+
+
+## Misc
+
+To find the value of a makefile variable, type `make print-VARIABLE`
+
